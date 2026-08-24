@@ -131,7 +131,8 @@
   <script>
     let currentLang = localStorage.getItem('appLang') || 'ar';
     let annualIncome = parseFloat(localStorage.getItem('annualIncome')) || 0;
-    let globalSubscriptions = [];
+    // تحميل البيانات المحفوظة محلياً أو بدء قائمة فارغة
+    let globalSubscriptions = JSON.parse(localStorage.getItem('mySubscriptions')) || [];
 
     const i18n = {
       ar: {
@@ -188,6 +189,11 @@
     function openModal() { document.getElementById('subModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('subModal').classList.add('hidden'); }
 
+    // حفظ القائمة في ذاكرة المتصفح
+    function saveToStorage() {
+      localStorage.setItem('mySubscriptions', JSON.stringify(globalSubscriptions));
+    }
+
     function applyLanguage() {
       const t = i18n[currentLang];
       document.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
@@ -219,21 +225,12 @@
       applyLanguage();
     }
 
-    async function fetchSubscriptions() {
-      try {
-        const res = await fetch('/api/subscriptions');
-        if (!res.ok) throw new Error("Network error");
-        const data = await res.json();
-        globalSubscriptions = Array.isArray(data) ? data : [];
-        renderTableAndStats(globalSubscriptions);
-      } catch (err) {
-        console.error("خطأ في جلب البيانات:", err);
-      }
-    }
-
-    async function handleAddSubscription(e) {
+    // دالة الحفظ المعدلة لتعمل مباشرة مع LocalStorage
+    function handleAddSubscription(e) {
       e.preventDefault();
-      const payload = {
+      
+      const newSub = {
+        id: Date.now(),
         name: document.getElementById('subName').value,
         category: document.getElementById('subCategory').value,
         amount: parseFloat(document.getElementById('subAmount').value) || 0,
@@ -241,31 +238,22 @@
         next_due_date: document.getElementById('subDueDate').value || null
       };
 
-      try {
-        const res = await fetch('/api/subscriptions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          closeModal();
-          document.getElementById('addSubForm').reset();
-          fetchSubscriptions();
-        }
-      } catch (err) {
-        console.error("خطأ في حفظ البيانات:", err);
-      }
+      globalSubscriptions.push(newSub);
+      saveToStorage(); // حفظ في المتصفح
+      renderTableAndStats(globalSubscriptions); // تحديث الجدول والحسابات
+      
+      closeModal();
+      document.getElementById('addSubForm').reset();
     }
 
-    async function deleteSub(id) {
-      if (!id || isNaN(id)) return;
+    // دالة الحذف المعدلة
+    function deleteSub(id) {
+      if (!id) return;
       if (!confirm(currentLang === 'ar' ? "هل أنت تأكد من حذف هذا الاشتراك؟" : "Are you sure you want to delete this subscription?")) return;
-      try {
-        const res = await fetch(`/api/subscriptions/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchSubscriptions();
-      } catch (err) {
-        console.error("خطأ في الحذف:", err);
-      }
+      
+      globalSubscriptions = globalSubscriptions.filter(sub => sub.id !== id);
+      saveToStorage();
+      renderTableAndStats(globalSubscriptions);
     }
 
     function renderTableAndStats(subs) {
@@ -288,7 +276,6 @@
 
         const safeName = escapeHtml(sub.name);
         const safeCategory = escapeHtml(sub.category || t.general);
-        const safeId = parseInt(sub.id, 10);
 
         tbody.innerHTML += `
           <tr class="hover:bg-zinc-800/40 transition">
@@ -298,7 +285,7 @@
             <td class="p-4 text-xs font-semibold">${cycle === 'monthly' ? t.monthly : t.yearly}</td>
             <td class="p-4 text-zinc-400 text-xs">${sub.next_due_date ? new Date(sub.next_due_date).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</td>
             <td class="p-4 text-center no-print">
-              <button onclick="deleteSub(${safeId})" class="text-zinc-500 hover:text-rose-400 transition p-2"><i class="fa-solid fa-trash"></i></button>
+              <button onclick="deleteSub(${sub.id})" class="text-zinc-500 hover:text-rose-400 transition p-2"><i class="fa-solid fa-trash"></i></button>
             </td>
           </tr>
         `;
@@ -347,8 +334,8 @@
       document.body.removeChild(link);
     }
 
+    // التشغيل التلقائي عند فتح الصفحة
     applyLanguage();
-    fetchSubscriptions();
   </script>
 
 </body>
