@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubTracker Pro | Dynamic Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background-color: white !important; color: black !important; }
+      .bg-slate-800, .bg-slate-900 { background: white !important; color: black !important; border: 1px solid #ddd !important; }
+      .text-emerald-400, .text-rose-400, .text-blue-400 { color: black !important; font-weight: bold; }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8 font-sans">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- الهيدر والتحكم -->
+    <div class="flex flex-col sm:flex-row justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-emerald-400"><i class="fa-solid fa-wallet me-2"></i>SubTracker Pro</h1>
+        <p id="txt-subtitle" class="text-xs text-slate-400 mt-1">إدارة الاشتراكات والتكاليف الشهرية والسنوية</p>
+      </div>
+      
+      <!-- أزرار التحكم واللغات والطباعة -->
+      <div class="flex flex-wrap gap-2 no-print">
+        <button onclick="toggleLanguage()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-xl text-xs transition">
+          <i class="fa-solid fa-globe me-1"></i> <span id="btn-lang-text">English</span>
+        </button>
+        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs transition">
+          <i class="fa-solid fa-file-excel me-1"></i> <span id="btn-excel-text">تصدير Excel</span>
+        </button>
+        <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-2 rounded-xl text-xs transition">
+          <i class="fa-solid fa-print me-1"></i> <span id="btn-print-text">طباعة</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- كروت الإحصائيات (الدخل والتكاليف) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- التكلفة الشهرية -->
+      <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+        <span id="lbl-monthly-cost" class="text-xs text-slate-400 font-medium">التكلفة الشهرية</span>
+        <h3 id="monthlyCost" class="text-3xl font-extrabold text-emerald-400 mt-2">$0.00</h3>
+      </div>
+
+      <!-- التكلفة السنوية -->
+      <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+        <span id="lbl-yearly-cost" class="text-xs text-slate-400 font-medium">التكلفة السنوية الإجمالية</span>
+        <h3 id="yearlyCost" class="text-3xl font-extrabold text-rose-400 mt-2">$0.00</h3>
+      </div>
+
+      <!-- الدخل السنوي -->
+      <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+        <div class="flex justify-between items-center">
+          <span id="lbl-yearly-income" class="text-xs text-slate-400 font-medium">الدخل السنوي</span>
+          <button onclick="updateIncomePrompt()" class="text-xs text-blue-400 hover:underline no-print">
+            <i class="fa-solid fa-pen me-1"></i><span id="btn-edit-text">تعديل</span>
+          </button>
+        </div>
+        <h3 id="yearlyIncome" class="text-3xl font-extrabold text-blue-400 mt-2">$0.00</h3>
+      </div>
+    </div>
+
+    <!-- جدول الاشتراكات -->
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+      <div class="p-4 border-b border-slate-700">
+        <h2 id="lbl-table-title" class="text-lg font-bold text-slate-200">الاشتراكات الحالية</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300" id="mainTable">
+          <thead class="bg-slate-950/50 text-slate-400 uppercase text-xs">
+            <tr>
+              <th id="th-name" class="p-4">اسم الخدمة</th>
+              <th id="th-category" class="p-4">الفئة</th>
+              <th id="th-cost" class="p-4">التكلفة</th>
+              <th id="th-cycle" class="p-4">دورة الدفع</th>
+              <th id="th-date" class="p-4">تاريخ التجديد</th>
+              <th id="th-actions" class="p-4 text-center no-print">الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="subscriptionsTable" class="divide-y divide-slate-700">
+            <!-- يتم إضافة الصفوف تلقائياً عبر JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentLang = localStorage.getItem('appLang') || 'ar';
+    let annualIncome = parseFloat(localStorage.getItem('annualIncome')) || 0;
+    let globalSubscriptions = [];
+
+    const i18n = {
+      ar: {
+        subtitle: "إدارة الاشتراكات والتكاليف الشهرية والسنوية",
+        langBtn: "English",
+        excelBtn: "تصدير Excel",
+        printBtn: "طباعة التقرير",
+        monthlyCost: "التكلفة الشهرية",
+        yearlyCost: "التكلفة السنوية الإجمالية",
+        yearlyIncome: "الدخل السنوي",
+        edit: "تعديل",
+        tableTitle: "الاشتراكات الحالية",
+        thName: "اسم الخدمة",
+        thCategory: "الفئة",
+        thCost: "التكلفة",
+        thCycle: "دورة الدفع",
+        thDate: "تاريخ التجديد",
+        thActions: "الإجراءات",
+        monthly: "شهري",
+        yearly: "سنوي",
+        general: "عام",
+        incomePrompt: "أدخل قيمة الدخل السنوي الخاص بك ($):"
+      },
+      en: {
+        subtitle: "Manage subscriptions, monthly & annual costs",
+        langBtn: "عربي",
+        excelBtn: "Export Excel",
+        printBtn: "Print Report",
+        monthlyCost: "Monthly Cost",
+        yearlyCost: "Total Yearly Cost",
+        yearlyIncome: "Annual Income",
+        edit: "Edit",
+        tableTitle: "Active Subscriptions",
+        thName: "Service Name",
+        thCategory: "Category",
+        thCost: "Cost",
+        thCycle: "Billing Cycle",
+        thDate: "Renewal Date",
+        thActions: "Actions",
+        monthly: "Monthly",
+        yearly: "Yearly",
+        general: "General",
+        incomePrompt: "Enter your annual income ($):"
+      }
+    };
+
+    // دالة حماية منع ثغرات XSS
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function applyLanguage() {
+      const t = i18n[currentLang];
+      document.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+      document.getElementById('mainTable').className = currentLang === 'ar' ? "w-full text-right text-sm text-slate-300" : "w-full text-left text-sm text-slate-300";
+
+      document.getElementById('txt-subtitle').innerText = t.subtitle;
+      document.getElementById('btn-lang-text').innerText = t.langBtn;
+      document.getElementById('btn-excel-text').innerText = t.excelBtn;
+      document.getElementById('btn-print-text').innerText = t.printBtn;
+      document.getElementById('lbl-monthly-cost').innerText = t.monthlyCost;
+      document.getElementById('lbl-yearly-cost').innerText = t.yearlyCost;
+      document.getElementById('lbl-yearly-income').innerText = t.yearlyIncome;
+      document.getElementById('btn-edit-text').innerText = t.edit;
+      document.getElementById('lbl-table-title').innerText = t.tableTitle;
+      document.getElementById('th-name').innerText = t.thName;
+      document.getElementById('th-category').innerText = t.thCategory;
+      document.getElementById('th-cost').innerText = t.thCost;
+      document.getElementById('th-cycle').innerText = t.thCycle;
+      document.getElementById('th-date').innerText = t.thDate;
+      document.getElementById('th-actions').innerText = t.thActions;
+
+      renderTableAndStats(globalSubscriptions);
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'ar' ? 'en' : 'ar';
+      localStorage.setItem('appLang', currentLang);
+      applyLanguage();
+    }
+
+    async function fetchSubscriptions() {
+      try {
+        const res = await fetch('/api/subscriptions');
+        if (!res.ok) throw new Error("Network error");
+        const data = await res.json();
+        globalSubscriptions = Array.isArray(data) ? data : [];
+        renderTableAndStats(globalSubscriptions);
+      } catch (err) {
+        console.error("خطأ في جلب البيانات:", err);
+      }
+    }
+
+    function renderTableAndStats(subs) {
+      const t = i18n[currentLang];
+      const tbody = document.getElementById('subscriptionsTable');
+      tbody.innerHTML = '';
+
+      let monthlyTotal = 0;
+
+      subs.forEach(sub => {
+        const amount = parseFloat(sub.amount);
+        const validAmount = isNaN(amount) || amount < 0 ? 0 : amount;
+        const cycle = sub.billing_cycle || sub.cycle || 'monthly';
+        
+        if (cycle === 'monthly') {
+          monthlyTotal += validAmount;
+        } else if (cycle === 'yearly') {
+          monthlyTotal += validAmount / 12;
+        }
+
+        const safeName = escapeHtml(sub.name);
+        const safeCategory = escapeHtml(sub.category || t.general);
+        const safeId = parseInt(sub.id, 10);
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-700/50 transition">
+            <td class="p-4 font-bold text-slate-100">${safeName}</td>
+            <td class="p-4"><span class="bg-slate-700 text-slate-300 px-2 py-1 rounded-md text-xs">${safeCategory}</span></td>
+            <td class="p-4 font-bold text-emerald-400">$${validAmount.toFixed(2)}</td>
+            <td class="p-4">${cycle === 'monthly' ? t.monthly : t.yearly}</td>
+            <td class="p-4 text-slate-400">${sub.next_due_date ? new Date(sub.next_due_date).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</td>
+            <td class="p-4 text-center no-print">
+              <button onclick="deleteSub(${safeId})" class="text-rose-400 hover:text-rose-300 transition"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      });
+
+      const yearlyTotal = monthlyTotal * 12;
+
+      document.getElementById('monthlyCost').innerText = `$${monthlyTotal.toFixed(2)}`;
+      document.getElementById('yearlyCost').innerText = `$${yearlyTotal.toFixed(2)}`;
+      document.getElementById('yearlyIncome').innerText = `$${annualIncome.toFixed(2)}`;
+    }
+
+    function updateIncomePrompt() {
+      const t = i18n[currentLang];
+      const val = prompt(t.incomePrompt, annualIncome);
+      if (val !== null) {
+        const parsed = parseFloat(val);
+        if (!isNaN(parsed) && parsed >= 0) {
+          annualIncome = parsed;
+          localStorage.setItem('annualIncome', annualIncome);
+          renderTableAndStats(globalSubscriptions);
+        }
+      }
+    }
+
+    function exportToExcel() {
+      const t = i18n[currentLang];
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+      csvContent += `${t.thName},${t.thCategory},${t.thCost},${t.thCycle},${t.thDate}\n`;
+
+      globalSubscriptions.forEach(sub => {
+        const cycle = (sub.billing_cycle || sub.cycle || 'monthly') === 'monthly' ? t.monthly : t.yearly;
+        const date = sub.next_due_date ? new Date(sub.next_due_date).toLocaleDateString() : '-';
+        
+        // منع ثغرة CSV Injection
+        let cleanName = (sub.name || '').replace(/^[=+\-@]/, '');
+        let cleanCategory = (sub.category || t.general).replace(/^[=+\-@]/, '');
+
+        csvContent += `"${cleanName}","${cleanCategory}","${sub.amount}","${cycle}","${date}"\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `SubTracker_Report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    applyLanguage();
+    fetchSubscriptions();
+  </script>
+
+</body>
+</html>
