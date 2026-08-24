@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubTracker Pro | API Docs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 p-6 md:p-12 font-sans max-w-4xl mx-auto space-y-8">
+
+    <header class="border-b border-amber-500/20 pb-4">
+        <h1 class="text-3xl font-extrabold text-amber-300 flex items-center gap-2">
+            <i class="fa-solid fa-code text-emerald-400"></i> API Documentation
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">SubTracker Pro RESTful Endpoint Reference</p>
+    </header>
+
+    <div class="space-y-4">
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+            <div class="flex items-center gap-3">
+                <span class="bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1 rounded-md font-bold">GET</span>
+                <code class="text-amber-200 font-mono text-sm">/api/subscriptions</code>
+            </div>
+            <p class="text-xs text-slate-400">Fetches all active subscriptions stored in the database.</p>
+        </div>
+
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+            <div class="flex items-center gap-3">
+                <span class="bg-amber-600/30 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded-md font-bold">POST</span>
+                <code class="text-amber-200 font-mono text-sm">/api/subscriptions</code>
+            </div>
+            <p class="text-xs text-slate-400">Creates a new subscription entry. Requires JSON payload with `title`, `amount`, and `nextPaymentDate`.</p>
+        </div>
+
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+            <div class="flex items-center gap-3">
+                <span class="bg-rose-600/30 text-rose-400 border border-rose-500/30 text-xs px-2.5 py-1 rounded-md font-bold">DELETE</span>
+                <code class="text-amber-200 font-mono text-sm">/api/subscriptions/:id</code>
+            </div>
+            <p class="text-xs text-slate-400">Deletes a specific subscription by its ID.</p>
+        </div>
+    </div>
+
+    <footer class="text-center pt-8 border-t border-slate-800 text-xs text-slate-500">
+        <a href="/" class="text-emerald-400 hover:underline"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+    </footer>
+
+</body>
+</html>
