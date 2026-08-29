@@ -106,7 +106,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-zinc-400 mb-1">التكلفة ($)</label>
-            <input type="number" step="0.01" min="0" id="subAmount" required placeholder="12.00" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+            <input type="number" step="0.01" min="0.01" id="subAmount" required placeholder="12.00" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
           </div>
           <div>
             <label class="block text-xs text-zinc-400 mb-1">دورة الدفع</label>
@@ -117,8 +117,12 @@
           </div>
         </div>
         <div>
+          <label class="block text-xs text-zinc-400 mb-1">البريد الإلكتروني للإشعارات (اختياري)</label>
+          <input type="email" id="userEmail" placeholder="example@mail.com" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
           <label class="block text-xs text-zinc-400 mb-1">تاريخ التجديد</label>
-          <input type="date" id="subDueDate" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+          <input type="date" id="subDueDate" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
         </div>
         <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
           <button type="button" onclick="closeModal()" class="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold">إلغاء</button>
@@ -131,8 +135,7 @@
   <script>
     let currentLang = localStorage.getItem('appLang') || 'ar';
     let annualIncome = parseFloat(localStorage.getItem('annualIncome')) || 0;
-    // تحميل البيانات المحفوظة محلياً أو بدء قائمة فارغة
-    let globalSubscriptions = JSON.parse(localStorage.getItem('mySubscriptions')) || [];
+    let globalSubscriptions = [];
 
     const i18n = {
       ar: {
@@ -189,11 +192,6 @@
     function openModal() { document.getElementById('subModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('subModal').classList.add('hidden'); }
 
-    // حفظ القائمة في ذاكرة المتصفح
-    function saveToStorage() {
-      localStorage.setItem('mySubscriptions', JSON.stringify(globalSubscriptions));
-    }
-
     function applyLanguage() {
       const t = i18n[currentLang];
       document.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
@@ -225,35 +223,69 @@
       applyLanguage();
     }
 
-    // دالة الحفظ المعدلة لتعمل مباشرة مع LocalStorage
-    function handleAddSubscription(e) {
-      e.preventDefault();
-      
-      const newSub = {
-        id: Date.now(),
-        name: document.getElementById('subName').value,
-        category: document.getElementById('subCategory').value,
-        amount: parseFloat(document.getElementById('subAmount').value) || 0,
-        billing_cycle: document.getElementById('subCycle').value,
-        next_due_date: document.getElementById('subDueDate').value || null
-      };
-
-      globalSubscriptions.push(newSub);
-      saveToStorage(); // حفظ في المتصفح
-      renderTableAndStats(globalSubscriptions); // تحديث الجدول والحسابات
-      
-      closeModal();
-      document.getElementById('addSubForm').reset();
+    // جلب البيانات من السيرفر
+    async function fetchSubscriptions() {
+      try {
+        const res = await fetch('/api/subscriptions');
+        const result = await res.json();
+        if (result.success && Array.isArray(result.data)) {
+          globalSubscriptions = result.data;
+          renderTableAndStats(globalSubscriptions);
+        }
+      } catch (err) {
+        console.error("خطأ في الاتصال بالـ MySQL:", err);
+      }
     }
 
-    // دالة الحذف المعدلة
-    function deleteSub(id) {
+    // إرسال البيانات للـ Server وحفظها في MySQL
+    async function handleAddSubscription(e) {
+      e.preventDefault();
+
+      const payload = {
+        title: document.getElementById('subName').value,
+        category: document.getElementById('subCategory').value || 'General',
+        amount: parseFloat(document.getElementById('subAmount').value),
+        currency: 'USD',
+        billingCycle: document.getElementById('subCycle').value,
+        nextPaymentDate: document.getElementById('subDueDate').value,
+        userEmail: document.getElementById('userEmail').value || ''
+      };
+
+      try {
+        const res = await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          closeModal();
+          document.getElementById('addSubForm').reset();
+          fetchSubscriptions();
+        } else {
+          alert("خطأ أثناء الحفظ: " + (data.error || "تأكد من إدخال كافة البيانات بشكل صحيح"));
+        }
+      } catch (err) {
+        console.error("خطأ في الاتصال بالسيرفر:", err);
+      }
+    }
+
+    // حذف عنصر من MySQL
+    async function deleteSub(id) {
       if (!id) return;
       if (!confirm(currentLang === 'ar' ? "هل أنت تأكد من حذف هذا الاشتراك؟" : "Are you sure you want to delete this subscription?")) return;
-      
-      globalSubscriptions = globalSubscriptions.filter(sub => sub.id !== id);
-      saveToStorage();
-      renderTableAndStats(globalSubscriptions);
+
+      try {
+        const res = await fetch(`/api/subscriptions/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          fetchSubscriptions();
+        }
+      } catch (err) {
+        console.error("خطأ أثناء الحذف:", err);
+      }
     }
 
     function renderTableAndStats(subs) {
@@ -266,7 +298,7 @@
       subs.forEach(sub => {
         const amount = parseFloat(sub.amount);
         const validAmount = isNaN(amount) || amount < 0 ? 0 : amount;
-        const cycle = sub.billing_cycle || sub.cycle || 'monthly';
+        const cycle = sub.billingCycle || 'monthly';
         
         if (cycle === 'monthly') {
           monthlyTotal += validAmount;
@@ -274,18 +306,19 @@
           monthlyTotal += validAmount / 12;
         }
 
-        const safeName = escapeHtml(sub.name);
+        const safeTitle = escapeHtml(sub.title);
         const safeCategory = escapeHtml(sub.category || t.general);
+        const safeId = parseInt(sub.id, 10);
 
         tbody.innerHTML += `
           <tr class="hover:bg-zinc-800/40 transition">
-            <td class="p-4 font-bold text-zinc-100">${safeName}</td>
+            <td class="p-4 font-bold text-zinc-100">${safeTitle}</td>
             <td class="p-4"><span class="bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-lg text-xs font-semibold border border-zinc-700/50">${safeCategory}</span></td>
             <td class="p-4 font-extrabold text-amber-500">$${validAmount.toFixed(2)}</td>
             <td class="p-4 text-xs font-semibold">${cycle === 'monthly' ? t.monthly : t.yearly}</td>
-            <td class="p-4 text-zinc-400 text-xs">${sub.next_due_date ? new Date(sub.next_due_date).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</td>
+            <td class="p-4 text-zinc-400 text-xs">${sub.nextPaymentDate ? new Date(sub.nextPaymentDate).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</td>
             <td class="p-4 text-center no-print">
-              <button onclick="deleteSub(${sub.id})" class="text-zinc-500 hover:text-rose-400 transition p-2"><i class="fa-solid fa-trash"></i></button>
+              <button onclick="deleteSub(${safeId})" class="text-zinc-500 hover:text-rose-400 transition p-2"><i class="fa-solid fa-trash"></i></button>
             </td>
           </tr>
         `;
@@ -317,12 +350,12 @@
       csvContent += `${t.thName},${t.thCategory},${t.thCost},${t.thCycle},${t.thDate}\n`;
 
       globalSubscriptions.forEach(sub => {
-        const cycle = (sub.billing_cycle || sub.cycle || 'monthly') === 'monthly' ? t.monthly : t.yearly;
-        const date = sub.next_due_date ? new Date(sub.next_due_date).toLocaleDateString() : '-';
-        let cleanName = (sub.name || '').replace(/^[=+\-@]/, '');
+        const cycle = sub.billingCycle === 'monthly' ? t.monthly : t.yearly;
+        const date = sub.nextPaymentDate || '-';
+        let cleanTitle = (sub.title || '').replace(/^[=+\-@]/, '');
         let cleanCategory = (sub.category || t.general).replace(/^[=+\-@]/, '');
 
-        csvContent += `"${cleanName}","${cleanCategory}","${sub.amount}","${cycle}","${date}"\n`;
+        csvContent += `"${cleanTitle}","${cleanCategory}","${sub.amount}","${cycle}","${date}"\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
@@ -334,8 +367,8 @@
       document.body.removeChild(link);
     }
 
-    // التشغيل التلقائي عند فتح الصفحة
     applyLanguage();
+    fetchSubscriptions();
   </script>
 
 </body>
